@@ -1,12 +1,17 @@
-import React from 'react';
-import { ArrowLeft, Heart, ThumbsDown, Share2, Utensils, Check } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Heart, ThumbsDown, Share2, Utensils, Check, Lock, ChefHat } from 'lucide-react';
+import { CookingMode } from './CookingMode.jsx';
 
-export function RecipeDetail({ theme, recipe, feedback, analytics, excluded, onToggleExcluded, onBack, onRate, showToast }) {
+export function RecipeDetail({
+  theme, recipe, feedback, analytics, excluded, onToggleExcluded, onBack, onRate,
+  showToast, canCookingMode, onUpgradeRequest,
+}) {
   const isLux = theme.id === 'lux';
+  const [cookingModeOpen, setCookingModeOpen] = useState(false);
   const needCount = recipe.ingredients.filter(i => !excluded[i]).length;
 
   async function shareRecipe() {
-    const text = `${recipe.name}\n\n${recipe.benefit}\n\nIngredients:\n${recipe.ingredients.map(i => `• ${i}`).join('\n')}`;
+    const text = `${recipe.name}\n\n${recipe.benefit}\n\nIngredients:\n${recipe.ingredients.map(i => `• ${i}`).join('\n')}\n\nSteps:\n${recipe.simpleSteps.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
     if (navigator.share) {
       try { await navigator.share({ title: recipe.name, text }); } catch {}
     } else if (navigator.clipboard) {
@@ -15,8 +20,20 @@ export function RecipeDetail({ theme, recipe, feedback, analytics, excluded, onT
     }
   }
 
+  function startCookingMode() {
+    if (!canCookingMode) {
+      onUpgradeRequest && onUpgradeRequest();
+      return;
+    }
+    setCookingModeOpen(true);
+  }
+
+  if (cookingModeOpen) {
+    return <CookingMode theme={theme} recipe={recipe} onExit={() => setCookingModeOpen(false)} />;
+  }
+
   return (
-    <div className="ek-fade-in" style={{ maxWidth: 760, margin: '0 auto' }}>
+    <div className="ek-fade-in" style={{ maxWidth: 780, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
         <button onClick={onBack} style={{
           display: 'flex', alignItems: 'center', gap: 8,
@@ -110,7 +127,7 @@ export function RecipeDetail({ theme, recipe, feedback, analytics, excluded, onT
               <h3 style={{
                 fontSize: 11, fontWeight: 600, color: theme.colors.textHint,
                 textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0,
-              }}>Ingredients</h3>
+              }}>{theme.copy.ingredientsLabel}</h3>
             </div>
             <span style={{ fontSize: 12, color: theme.colors.textMuted }}>
               <span style={{ color: theme.colors.accent, fontWeight: 600 }}>{needCount}</span>/{recipe.ingredients.length} needed
@@ -156,6 +173,79 @@ export function RecipeDetail({ theme, recipe, feedback, analytics, excluded, onT
           </ul>
         </div>
 
+        {/* COOKING STEPS — the new section */}
+        <div style={{ padding: 28, borderBottom: `1px solid ${theme.colors.borderSoft}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ChefHat size={14} style={{ color: theme.colors.textHint }} />
+              <h3 style={{
+                fontSize: 11, fontWeight: 600, color: theme.colors.textHint,
+                textTransform: 'uppercase', letterSpacing: '0.1em', margin: 0,
+              }}>{theme.copy.stepsLabel}</h3>
+            </div>
+            <button onClick={startCookingMode} style={{
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+              padding: '8px 14px', borderRadius: theme.radius.md,
+              fontFamily: isLux ? theme.fonts.serif : theme.fonts.sans,
+              fontStyle: isLux ? 'italic' : 'normal',
+              background: canCookingMode ? theme.colors.accent : theme.colors.surface,
+              color: canCookingMode ? 'white' : theme.colors.textHint,
+              border: `1px solid ${canCookingMode ? theme.colors.accent : theme.colors.border}`,
+            }}>
+              <ChefHat size={12} /> {theme.copy.cookingModeCta}
+              {!canCookingMode && <Lock size={11} />}
+            </button>
+          </div>
+          {recipe.simpleSteps && recipe.simpleSteps.length > 0 ? (
+            <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {recipe.simpleSteps.map((step, idx) => (
+                <li key={idx} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  <span style={{
+                    flexShrink: 0, width: 26, height: 26, borderRadius: '50%',
+                    background: theme.colors.accentSoft, color: theme.colors.accent,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 700,
+                    fontFamily: isLux ? theme.fonts.serif : theme.fonts.sans,
+                  }}>
+                    {isLux ? ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'][idx] || (idx + 1) : (idx + 1)}
+                  </span>
+                  <p style={{
+                    margin: 0, paddingTop: 2,
+                    fontSize: 14, lineHeight: 1.6,
+                    fontFamily: isLux ? theme.fonts.serif : theme.fonts.sans,
+                    color: theme.colors.text,
+                  }}>{step}</p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div style={{
+              padding: 20, textAlign: 'center', fontSize: 13,
+              fontStyle: 'italic', color: theme.colors.textMuted,
+              background: theme.colors.surfaceMuted, borderRadius: theme.radius.md,
+            }}>
+              Steps not available for this recipe yet.
+            </div>
+          )}
+          {!canCookingMode && (
+            <div style={{
+              marginTop: 16, padding: 12,
+              background: theme.colors.accentSoft, borderRadius: theme.radius.md,
+              fontSize: 12, color: theme.colors.text,
+              display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <ChefHat size={14} style={{ color: theme.colors.accent }} />
+              <span>
+                <b>Cooking mode</b> walks you through each step with built-in timers, voice prompts, and keeps your screen awake. {' '}
+                <button onClick={onUpgradeRequest} style={{
+                  background: 'none', border: 'none', color: theme.colors.accent,
+                  textDecoration: 'underline', fontWeight: 600, cursor: 'pointer', padding: 0, fontSize: 12,
+                }}>See Premium</button>
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Rate */}
         <div style={{
           padding: 28, display: 'flex', alignItems: 'center',
@@ -191,6 +281,18 @@ export function RecipeDetail({ theme, recipe, feedback, analytics, excluded, onT
             </button>
           </div>
         </div>
+
+        {/* Honest disclosure for generated recipes — subtle, but present */}
+        {recipe.source === 'llm' && (
+          <div style={{
+            padding: '12px 28px', background: theme.colors.surfaceMuted,
+            borderTop: `1px solid ${theme.colors.borderSoft}`,
+            fontSize: 11, color: theme.colors.textHint,
+            fontStyle: 'italic', textAlign: 'center',
+          }}>
+            This recipe was composed for you with the help of an assistant — please review the ingredients before cooking.
+          </div>
+        )}
       </article>
     </div>
   );

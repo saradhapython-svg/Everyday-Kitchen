@@ -1,12 +1,13 @@
 import React from 'react';
 import { Heart, ThumbsDown, Clock, ChevronRight } from 'lucide-react';
 
-const ROMAN = ['I.', 'II.', 'III.'];
+const ROMAN = ['I.', 'II.', 'III.', 'IV.', 'V.', 'VI.'];
 
 export function RecipeCard({ theme, recipe, rank, score, feedback, stats, onOpen, onRate, delay }) {
   const isLux = theme.id === 'lux';
   const liked = feedback === 'like';
   const disliked = feedback === 'dislike';
+  const isFresh = recipe.source === 'llm';
 
   return (
     <article className="ek-card-hover ek-fade-in" style={{
@@ -15,29 +16,26 @@ export function RecipeCard({ theme, recipe, rank, score, feedback, stats, onOpen
       display: 'flex', flexDirection: 'column',
       animationDelay: `${delay}ms`,
     }}>
-      {/* Top band */}
       {isLux ? (
-        <div style={{
-          height: 80, background: recipe.accent, position: 'relative',
-        }}>
+        <div style={{ height: 80, background: recipe.accent, position: 'relative' }}>
           <div style={{
             position: 'absolute', top: 10, left: 14,
             fontFamily: theme.fonts.serif, fontSize: 12, color: 'rgba(245,241,234,0.95)',
             letterSpacing: '0.25em',
           }}>{ROMAN[rank - 1]}</div>
-          {recipe.source === 'llm' && (
+          {isFresh && (
             <div style={{
               position: 'absolute', top: 10, right: 12,
               padding: '2px 8px', background: 'rgba(0,0,0,0.25)', borderRadius: 2,
               fontFamily: theme.fonts.serif, fontSize: 9, color: '#F5F1EA',
               letterSpacing: '0.2em', textTransform: 'uppercase', fontStyle: 'italic',
-            }}>New</div>
+            }}>{theme.copy.newBadge}</div>
           )}
           <div style={{
             position: 'absolute', bottom: 10, right: 14,
             fontFamily: theme.fonts.serif, fontSize: 9, color: 'rgba(245,241,234,0.7)',
             letterSpacing: '0.2em', textTransform: 'uppercase', fontStyle: 'italic',
-          }}>{['First', 'Second', 'Third'][rank - 1]}</div>
+          }}>{['First', 'Second', 'Third'][rank - 1] || `${rank}th`}</div>
         </div>
       ) : (
         <div style={{
@@ -49,7 +47,8 @@ export function RecipeCard({ theme, recipe, rank, score, feedback, stats, onOpen
               fontFamily: 'monospace', fontSize: 11, fontWeight: 600,
               color: recipe.accent, letterSpacing: '0.05em',
             }}>
-              № {String(rank).padStart(2, '0')} {recipe.source === 'llm' && <span style={{ color: theme.colors.textHint }}>· new</span>}
+              № {String(rank).padStart(2, '0')}
+              {isFresh && <span style={{ color: theme.colors.textHint }}> · {theme.copy.newBadge}</span>}
             </span>
             <span style={{ fontSize: 11, fontWeight: 500, color: theme.colors.textHint }}>{score.toFixed(1)} fit</span>
           </div>
@@ -68,9 +67,7 @@ export function RecipeCard({ theme, recipe, rank, score, feedback, stats, onOpen
             <div style={{
               fontFamily: theme.fonts.serif, fontSize: 9,
               color: recipe.accent, letterSpacing: '0.3em', textTransform: 'uppercase', marginBottom: 6,
-            }}>
-              {recipe.time}
-            </div>
+            }}>{recipe.time}</div>
             <h3 style={{
               fontFamily: theme.fonts.serif, fontSize: 18, fontWeight: 500,
               lineHeight: 1.15, color: theme.colors.text, margin: '0 0 10px',
@@ -102,7 +99,7 @@ export function RecipeCard({ theme, recipe, rank, score, feedback, stats, onOpen
               padding: isLux ? 0 : 8,
               width: isLux ? 28 : 'auto', height: isLux ? 28 : 'auto',
               borderRadius: isLux ? '50%' : theme.radius.md,
-              background: liked ? theme.colors.inverted : (isLux ? 'transparent' : 'transparent'),
+              background: liked ? theme.colors.inverted : 'transparent',
               color: liked ? theme.colors.accent : theme.colors.textMuted,
               border: liked ? 'none' : `1px solid ${theme.colors.border}`,
               display: 'flex', alignItems: 'center', justifyContent: 'center',

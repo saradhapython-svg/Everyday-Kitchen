@@ -1,7 +1,6 @@
 // ============================================================
-//  Theme tokens
-//  Two complete visual systems, identical structure, different values.
-//  Every component reads from the active theme via useTheme().
+//  Theme tokens — warm and luxurious as data
+//  No surface mention of AI anywhere; copy reads like a thoughtful person curating.
 // ============================================================
 
 export const WARM_THEME = {
@@ -28,7 +27,6 @@ export const WARM_THEME = {
     danger: '#A0522D',
   },
   radius: { sm: 6, md: 8, lg: 12 },
-  // Copy variations
   copy: {
     appName: 'The Everyday Kitchen',
     tagline: 'Recipes that adapt to what your family loves.',
@@ -38,7 +36,8 @@ export const WARM_THEME = {
     q2: 'What flavor are you in the mood for?',
     q3: "Who's at the table?",
     submitCta: "See tonight's recipes",
-    tonightTitle: "Tonight's selections",
+    tonightTitle: 'Your kitchen tonight',
+    suggestionsSubtitle: 'Hand-picked for your family',
     macroLabels: { low: 'Low', medium: 'Medium', high: 'High' },
     tasteLabels: { spicy: 'Spicy', tangy: 'Tangy', sweet: 'Sweet', sour: 'Sour', balanced: 'Balanced' },
     audienceLabels: { kids: 'Children', teenagers: 'Teenagers', adults: 'Adults', old: 'Seniors' },
@@ -46,10 +45,15 @@ export const WARM_THEME = {
     shoppingBody: (day) => `You shop on ${day}.`,
     groceryHeading: 'Grocery list',
     groceryHint: 'Uncheck what you already have.',
-    askLLMCta: 'Suggest new',
+    askMoreCta: 'Show me another',         // was "Suggest new" / "AI"
+    moreForLabel: 'More for',              // breakfast/lunch/etc.
     insightsCta: 'Insights',
-    ledgerHeading: 'What we\'re learning',
-    section: (n) => String(n).padStart(2, '0'),
+    ledgerHeading: "What we're learning",
+    ingredientsLabel: 'Ingredients',
+    stepsLabel: 'How to make it',
+    cookingModeCta: 'Cooking mode',
+    cookingModeUnlock: 'Cooking mode is a Premium feature.',
+    newBadge: 'fresh',                     // replaces "new" / "AI"
   },
 };
 
@@ -68,16 +72,16 @@ export const LUX_THEME = {
     text: '#1A1410',
     textMuted: '#6B5D4F',
     textHint: '#8B7355',
-    accent: '#A68A2D',         // antique gold
+    accent: '#A68A2D',
     accentSoft: '#F0EBDF',
     border: '#D4C8B5',
     borderSoft: '#F0EBE0',
-    inverted: '#1A1410',       // deep espresso
+    inverted: '#1A1410',
     invertedText: '#F5F1EA',
     invertedAccent: '#A68A2D',
     danger: '#6B5D4F',
   },
-  radius: { sm: 2, md: 2, lg: 4 }, // sharper corners read as more refined
+  radius: { sm: 2, md: 2, lg: 4 },
   copy: {
     appName: 'The Everyday Kitchen',
     tagline: 'Recipes composed for the table you keep.',
@@ -87,7 +91,8 @@ export const LUX_THEME = {
     q2: 'A question of mood',
     q3: 'A question of company',
     submitCta: "Compose tonight's selection",
-    tonightTitle: "Tonight's selection",
+    tonightTitle: 'Your kitchen tonight',
+    suggestionsSubtitle: 'Composed for your evening',
     macroLabels: { low: 'Modest', medium: 'Considered', high: 'Generous' },
     tasteLabels: { spicy: 'Spirited', tangy: 'Bright', sweet: 'Tender', sour: 'Sharp', balanced: 'Composed' },
     audienceLabels: { kids: 'Little ones', teenagers: 'Teenagers', adults: 'Adults', old: 'Elders' },
@@ -95,10 +100,15 @@ export const LUX_THEME = {
     shoppingBody: (day) => `For ${day}'s market.`,
     groceryHeading: 'To gather',
     groceryHint: 'Set aside what is already in your kitchen.',
-    askLLMCta: 'Commission new',
+    askMoreCta: 'Another, please',
+    moreForLabel: 'For the',
     insightsCta: 'The ledger',
     ledgerHeading: 'What the kitchen has learned',
-    section: (n) => ['i', 'ii', 'iii', 'iv', 'v', 'vi'][n - 1] || String(n),
+    ingredientsLabel: 'The ingredients',
+    stepsLabel: 'The method',
+    cookingModeCta: 'Begin cooking',
+    cookingModeUnlock: 'Cooking mode awaits in Premium.',
+    newBadge: 'just composed',
   },
 };
 

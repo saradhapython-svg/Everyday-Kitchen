@@ -1,42 +1,61 @@
 import React from 'react';
-import { ArrowLeft, Check, Sparkles, Calendar, Apple, Cloud, Image, Crown } from 'lucide-react';
+import { ArrowLeft, Check, Sparkles, Calendar, Apple, Cloud, Image, Crown, ChefHat, Share2, Users, Award, Clock } from 'lucide-react';
 import { LUX_THEME } from '../themes/tokens.js';
 import { TIERS } from '../lib/tier.js';
 
-// Always renders in luxurious style — that IS the sales pitch.
-// Free users see this and feel what premium looks like.
 const T = LUX_THEME;
 
 const PREMIUM_FEATURES = [
   {
     icon: Sparkles,
     title: 'Unlimited new recipes',
-    body: 'Commission as many AI-generated recipes as you want, any time. Free is limited to three per month.',
+    body: 'Ask for fresh recipes any time. Free is limited to three per month.',
   },
   {
-    icon: Cloud,
-    title: 'Weather-aware suggestions',
-    body: 'Hot day, cold day, rainy evening — the kitchen reads the sky and picks accordingly.',
-  },
-  {
-    icon: Apple,
-    title: 'Seasonal produce intelligence',
-    body: 'Recipes lean on what is in season near you. Tomatoes in August, root vegetables in February.',
+    icon: ChefHat,
+    title: 'Cooking mode with timers',
+    body: 'Full-screen step-by-step walkthrough with built-in timers and screen-stays-on while you cook.',
   },
   {
     icon: Calendar,
-    title: 'Cooking-time mood',
-    body: 'Quick weekday meals, comfort cooking on a Sunday, slow projects when you have the afternoon.',
+    title: 'Browse by meal time',
+    body: 'Tabs for breakfast, lunch, dinner, and snacks. Each surface tuned to your taste.',
   },
   {
-    icon: Image,
-    title: 'Snap your fridge',
-    body: 'Photograph the contents of your fridge; the kitchen suggests recipes from what is already there.',
+    icon: Share2,
+    title: 'Weekend list to your phone',
+    body: 'One tap sends your entire weekend ingredient list to your email, WhatsApp, or SMS.',
+  },
+  {
+    icon: Clock,
+    title: 'Cooking-time mood',
+    body: 'Quick weekday meals, comfort cooking on Sunday, slow projects when you have the afternoon.',
   },
   {
     icon: Crown,
     title: 'The atelier theme',
     body: 'A more considered visual treatment — deeper colors, finer typography. Switch between themes at will.',
+  },
+];
+
+const COMING_SOON = [
+  {
+    icon: ChefHat,
+    title: 'Share your own recipes',
+    body: 'Submit a recipe your family loves and watch others discover it.',
+    when: 'Soon',
+  },
+  {
+    icon: Users,
+    title: 'Follow other home cooks',
+    body: 'See what cooks whose taste matches yours are making this week.',
+    when: 'Later',
+  },
+  {
+    icon: Award,
+    title: 'Earn points, unlock something special',
+    body: 'Cook regularly, build a streak, get rewarded with limited-edition seasonal recipes.',
+    when: 'Later',
   },
 ];
 
@@ -53,7 +72,7 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
         <ArrowLeft size={14} /> Back
       </button>
 
-      {/* Hero — dark band, luxurious typography */}
+      {/* Hero */}
       <div style={{
         background: T.colors.inverted, color: T.colors.invertedText,
         padding: '40px 32px', borderRadius: T.radius.lg, marginBottom: 24, textAlign: 'center',
@@ -61,9 +80,7 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
         <div style={{
           fontFamily: T.fonts.serif, fontSize: 10, color: T.colors.accent,
           letterSpacing: '0.5em', textTransform: 'uppercase', marginBottom: 16,
-        }}>
-          — Premium —
-        </div>
+        }}>— Premium —</div>
         <h1 style={{
           fontFamily: T.fonts.serif, fontSize: 42, fontWeight: 400,
           lineHeight: 1.1, letterSpacing: '-0.02em', margin: 0,
@@ -89,9 +106,7 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
         <div style={{
           fontFamily: T.fonts.serif, fontSize: 10, color: T.colors.accent,
           letterSpacing: '0.4em', textTransform: 'uppercase', marginBottom: 12,
-        }}>
-          — Monthly subscription —
-        </div>
+        }}>— Monthly subscription —</div>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
           <span style={{ fontFamily: T.fonts.serif, fontSize: 56, fontWeight: 400, color: T.colors.text }}>$4.99</span>
           <span style={{ fontFamily: T.fonts.serif, fontSize: 18, color: T.colors.textMuted, fontStyle: 'italic' }}>/ month</span>
@@ -102,6 +117,7 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
       </div>
 
       {/* Features grid */}
+      <SectionHeading>Today in Premium</SectionHeading>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 32 }}>
         {PREMIUM_FEATURES.map((f, i) => {
           const Icon = f.icon;
@@ -127,32 +143,63 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
         })}
       </div>
 
+      {/* Coming Soon */}
+      <SectionHeading>What's coming</SectionHeading>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 32 }}>
+        {COMING_SOON.map((f, i) => {
+          const Icon = f.icon;
+          return (
+            <div key={i} style={{
+              padding: 20, background: T.colors.surface, borderRadius: T.radius.lg,
+              border: `1px dashed ${T.colors.border}`,
+              opacity: 0.85,
+              position: 'relative',
+            }}>
+              <div style={{
+                position: 'absolute', top: 12, right: 12,
+                padding: '2px 8px', borderRadius: 2,
+                background: T.colors.surfaceMuted, color: T.colors.textHint,
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase',
+              }}>{f.when}</div>
+              <div style={{
+                width: 36, height: 36, borderRadius: 18,
+                background: T.colors.surfaceMuted, color: T.colors.textMuted,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+              }}>
+                <Icon size={18} />
+              </div>
+              <div style={{
+                fontFamily: T.fonts.serif, fontSize: 17, fontWeight: 500,
+                color: T.colors.text, marginBottom: 6,
+              }}>{f.title}</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5, color: T.colors.textMuted }}>{f.body}</div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Comparison */}
+      <SectionHeading>Comparison</SectionHeading>
       <div style={{
         background: T.colors.surface, borderRadius: T.radius.lg,
         border: `1px solid ${T.colors.border}`, padding: 24, marginBottom: 32,
       }}>
-        <div style={{
-          fontFamily: T.fonts.serif, fontSize: 10, color: T.colors.accent,
-          letterSpacing: '0.4em', textTransform: 'uppercase', marginBottom: 16, textAlign: 'center',
-        }}>
-          — Comparison —
-        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           <ComparisonCol title="Free" items={[
             'Three daily picks, adaptive scoring',
-            'Basic shopping list with check-off',
-            'Three AI recipes per month',
+            'Cooking steps in every recipe',
+            'Basic shopping list',
+            'Three new recipes per month',
             'Warm visual theme',
           ]} />
           <ComparisonCol title="Premium" items={[
             'Everything in Free',
-            'Unlimited AI recipes',
+            'Unlimited new recipes',
+            'Cooking mode with timers',
+            'Browse by mealtime',
+            'Weekend list to your phone',
             'Cooking-time mood matching',
-            'Weather-aware seasonal picks',
-            'Snap-your-fridge feature',
-            'Atelier theme (this one)',
-            'Switch themes any time',
+            'Atelier theme + theme switching',
           ]} highlight />
         </div>
       </div>
@@ -177,23 +224,21 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
               You are a <span style={{ fontStyle: 'italic', color: T.colors.accent }}>Premium</span> member. Thank you.
             </div>
           </div>
-          <button onClick={onDowngrade}
-            style={{
-              width: '100%', padding: 14, borderRadius: T.radius.md,
-              background: 'none', border: `1px solid ${T.colors.border}`,
-              color: T.colors.textMuted, fontSize: 13, fontWeight: 500,
-            }}>
+          <button onClick={onDowngrade} style={{
+            width: '100%', padding: 14, borderRadius: T.radius.md,
+            background: 'none', border: `1px solid ${T.colors.border}`,
+            color: T.colors.textMuted, fontSize: 13, fontWeight: 500,
+          }}>
             Cancel subscription
           </button>
         </div>
       ) : (
-        <button onClick={onUpgrade}
-          style={{
-            width: '100%', padding: 18, borderRadius: T.radius.md,
-            background: T.colors.inverted, color: T.colors.invertedText,
-            border: 'none', fontFamily: T.fonts.serif, fontSize: 16, fontWeight: 500,
-            letterSpacing: '0.2em', textTransform: 'uppercase',
-          }}>
+        <button onClick={onUpgrade} style={{
+          width: '100%', padding: 18, borderRadius: T.radius.md,
+          background: T.colors.inverted, color: T.colors.invertedText,
+          border: 'none', fontFamily: T.fonts.serif, fontSize: 16, fontWeight: 500,
+          letterSpacing: '0.2em', textTransform: 'uppercase',
+        }}>
           Begin your subscription
         </button>
       )}
@@ -208,6 +253,16 @@ export function PremiumScreen({ tier, onBack, onUpgrade, onDowngrade }) {
   );
 }
 
+function SectionHeading({ children }) {
+  return (
+    <div style={{
+      textAlign: 'center', marginBottom: 16,
+      fontFamily: T.fonts.serif, fontSize: 10, color: T.colors.accent,
+      letterSpacing: '0.4em', textTransform: 'uppercase',
+    }}>— {children} —</div>
+  );
+}
+
 function ComparisonCol({ title, items, highlight }) {
   return (
     <div>
@@ -216,9 +271,7 @@ function ComparisonCol({ title, items, highlight }) {
         color: highlight ? T.colors.accent : T.colors.text,
         marginBottom: 12, paddingBottom: 8,
         borderBottom: `1px solid ${highlight ? T.colors.accent : T.colors.border}`,
-      }}>
-        {title}
-      </div>
+      }}>{title}</div>
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
         {items.map((item, i) => (
           <li key={i} style={{

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { ThumbsDown, Clock, Calendar, ArrowLeft, Heart, ChevronRight, BarChart3, Utensils, Check, Copy, Sparkles, Loader2, Lock, Crown, Settings } from 'lucide-react';
+import { ArrowLeft, BarChart3, Crown, Settings } from 'lucide-react';
 import { useTier, TIERS } from './lib/tier.js';
 import { useTheme } from './lib/theme.js';
 import { storage } from './lib/storage.js';
@@ -8,20 +8,13 @@ import { PremiumScreen } from './components/PremiumScreen.jsx';
 import { OwnerUnlockFooter } from './components/OwnerUnlockFooter.jsx';
 import { ThemeSwitcher } from './components/ThemeSwitcher.jsx';
 import { PaywallModal } from './components/PaywallModal.jsx';
-import { RecipeCard } from './components/RecipeCard.jsx';
 import { RecipeDetail } from './components/RecipeDetail.jsx';
 import { PreferenceForm } from './components/PreferenceForm.jsx';
 import { SuggestionsView } from './components/SuggestionsView.jsx';
 import { AnalyticsView } from './components/AnalyticsView.jsx';
 
-function getGreeting(theme) {
+function getGreeting() {
   const h = new Date().getHours();
-  if (theme.id === 'lux') {
-    if (h < 12) return 'Good morning';
-    if (h < 17) return 'Good afternoon';
-    if (h < 21) return 'Good evening';
-    return 'Hello';
-  }
   if (h < 12) return 'Good morning';
   if (h < 17) return 'Good afternoon';
   if (h < 21) return 'Good evening';
@@ -40,9 +33,10 @@ export default function App() {
   const [userRecipes, setUserRecipes] = useState([]);
   const [activeRecipe, setActiveRecipe] = useState(null);
   const [shoppingDay, setShoppingDay] = useState('saturday');
+  const [mealTime, setMealTime] = useState(null);
   const [toast, setToast] = useState(null);
   const [llmLoading, setLlmLoading] = useState(false);
-  const [paywall, setPaywall] = useState(null); // { feature, onClose }
+  const [paywall, setPaywall] = useState(null);
   const dwellStart = useRef(null);
 
   const allRecipes = useMemo(() => [...SEED_RECIPES, ...userRecipes], [userRecipes]);
@@ -66,7 +60,7 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       if (view === 'detail') { setActiveRecipe(null); setView('suggestions'); }
-      else if (view === 'analytics' || view === 'premium' || view === 'settings') setView('suggestions');
+      else if (['analytics', 'premium', 'settings'].includes(view)) setView('suggestions');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -78,7 +72,6 @@ export default function App() {
     }
   }, [view]);
 
-  // Dwell tracking
   useEffect(() => {
     if (view === 'detail' && activeRecipe) {
       dwellStart.current = Date.now();
@@ -107,8 +100,11 @@ export default function App() {
 
   const ranked = useMemo(() => {
     if (!prefs) return [];
-    return [...allRecipes].map(r => ({ recipe: r, score: scoreRecipe(r, prefs, analytics) })).sort((a, b) => b.score - a.score);
-  }, [prefs, analytics, allRecipes]);
+    return [...allRecipes]
+      .map(r => ({ recipe: r, score: scoreRecipe(r, prefs, analytics, mealTime) }))
+      .filter(({ score }) => mealTime === null || score > 0)
+      .sort((a, b) => b.score - a.score);
+  }, [prefs, analytics, allRecipes, mealTime]);
   const top3 = ranked.slice(0, 3);
 
   const showToast = useCallback((msg, ms = 2200) => {
@@ -150,18 +146,20 @@ export default function App() {
     });
   }, []);
 
-  const askLLMForNew = useCallback(async () => {
+  const askForMore = useCallback(async () => {
     if (!prefs) return;
-    // Gate: free users get a quota; owner bypasses all limits
     if (!tierApi.canCallLlm) {
-      setPaywall({ feature: 'llm', message: `You've used your ${3} AI recipes this month. Premium unlocks unlimited.` });
+      setPaywall({
+        feature: 'llm',
+        message: `You've reached this month's limit of curated additions. Premium unlocks unlimited.`,
+      });
       return;
     }
     setLlmLoading(true);
-    showToast(theme.copy.askLLMCta + '...');
+    showToast('Composing something new for you...');
     try {
       const namesMap = Object.fromEntries(allRecipes.map(r => [r.id, r.name]));
-      const recipe = await fetchLLMRecipe(prefs, feedback, namesMap);
+      const recipe = await fetchLLMRecipe(prefs, feedback, namesMap, mealTime);
       if (!recipe?.id || !recipe?.name || !Array.isArray(recipe?.ingredients)) throw new Error('Bad shape');
       recipe.source = 'llm';
       recipe.accent = recipe.accent || theme.colors.accent;
@@ -169,18 +167,18 @@ export default function App() {
       setUserRecipes(updated);
       storage.save('userRecipes', updated);
       await tierApi.recordLlmCall();
-      showToast('New recipe added.');
+      showToast('A new recipe is ready for you.');
     } catch (e) {
       console.error(e);
-      showToast("Couldn't reach the chef. Try again later.");
+      showToast("Couldn't compose right now. Try again in a moment.");
     } finally {
       setLlmLoading(false);
     }
-  }, [prefs, feedback, userRecipes, theme, tierApi, allRecipes, showToast]);
+  }, [prefs, feedback, userRecipes, theme, tierApi, allRecipes, showToast, mealTime]);
 
   const resetAll = useCallback(async () => {
     setPrefs(null); setAnalytics({}); setFeedback({}); setExcluded({}); setUserRecipes([]);
-    // Keep tier and theme — those are account-level, not recipe data
+    setMealTime(null);
     await Promise.all([
       storage.remove('prefs'), storage.remove('analytics'), storage.remove('feedback'),
       storage.remove('excluded'), storage.remove('userRecipes'),
@@ -194,7 +192,26 @@ export default function App() {
     return [...set].sort();
   }, [top3]);
 
-  // Show paywall when free user tries a premium feature
+  // Weekend list — top recipes across all meal times, deduplicated ingredients
+  const weekendList = useMemo(() => {
+    if (!prefs) return [];
+    const allMealTimes = [null, 'breakfast', 'lunch', 'dinner'];
+    const seen = new Set();
+    const recipes = [];
+    allMealTimes.forEach(mt => {
+      const scored = [...allRecipes]
+        .map(r => ({ recipe: r, score: scoreRecipe(r, prefs, analytics, mt) }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score);
+      scored.slice(0, 2).forEach(({ recipe }) => {
+        if (!seen.has(recipe.id)) { seen.add(recipe.id); recipes.push(recipe); }
+      });
+    });
+    const ingSet = new Set();
+    recipes.forEach(r => r.ingredients.forEach(i => ingSet.add(i)));
+    return { recipes, ingredients: [...ingSet].sort() };
+  }, [prefs, analytics, allRecipes]);
+
   const requestUpgrade = useCallback((feature, message) => {
     setPaywall({ feature, message });
   }, []);
@@ -203,7 +220,7 @@ export default function App() {
     return <LoadingScreen theme={theme} />;
   }
 
-  const greeting = getGreeting(theme);
+  const greeting = getGreeting();
 
   return (
     <div style={{
@@ -250,6 +267,7 @@ export default function App() {
             shoppingList={shoppingList}
             shoppingDay={shoppingDay}
             excluded={excluded}
+            weekendList={weekendList}
             onToggleExcluded={toggleExcluded}
             onSetManyExcluded={setManyExcluded}
             onChangeDay={(d) => { setShoppingDay(d); storage.save('shopping', d); }}
@@ -257,8 +275,11 @@ export default function App() {
             onRate={rateRecipe}
             onEditPrefs={() => setView('form')}
             onReset={resetAll}
-            onAskLLM={askLLMForNew}
+            onAskMore={askForMore}
             llmLoading={llmLoading}
+            mealTime={mealTime}
+            onChangeMealTime={setMealTime}
+            onUpgradeRequest={(msg) => requestUpgrade('mealTimeBrowsing', msg || 'Browsing by mealtime is a Premium feature.')}
             showToast={showToast}
           />
         )}
@@ -274,6 +295,8 @@ export default function App() {
             onBack={() => { setView('suggestions'); setActiveRecipe(null); }}
             onRate={(kind) => rateRecipe(activeRecipe.id, kind)}
             showToast={showToast}
+            canCookingMode={tierApi.canUse('cookingMode')}
+            onUpgradeRequest={() => requestUpgrade('cookingMode', theme.copy.cookingModeUnlock)}
           />
         )}
 
@@ -293,7 +316,7 @@ export default function App() {
             tier={tierApi.tier}
             onBack={() => setView('suggestions')}
             onUpgrade={async () => { await tierApi.promote(); setView('suggestions'); showToast('Welcome to Premium. The kitchen feels different now.'); }}
-            onDowngrade={async () => { await tierApi.downgrade(); setView('suggestions'); showToast('You\'re back on the free tier.'); }}
+            onDowngrade={async () => { await tierApi.downgrade(); setView('suggestions'); showToast("You're back on the free tier."); }}
           />
         )}
 
@@ -324,10 +347,6 @@ export default function App() {
     </div>
   );
 }
-
-// ============================================================
-//  Subcomponents kept inline because they're small and theme-aware
-// ============================================================
 
 function ThemeStyleInjector({ theme }) {
   return (
@@ -395,43 +414,34 @@ function Header({ theme, greeting, tier, hasPrefs, onInsights, onSettings, onUpg
             <h1 style={{ fontFamily: theme.fonts.serif, fontSize: 38, color: theme.colors.text, lineHeight: 1.1, letterSpacing: '-0.02em', fontWeight: 600, margin: 0 }}>
               The Everyday Kitchen
             </h1>
-            <p style={{ fontSize: 14, color: theme.colors.textMuted, margin: '6px 0 0' }}>
-              {theme.copy.tagline}
-            </p>
+            <p style={{ fontSize: 14, color: theme.colors.textMuted, margin: '6px 0 0' }}>{theme.copy.tagline}</p>
           </>
         )}
       </div>
       {hasPrefs && (
         <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
           {tier === TIERS.FREE && (
-            <button onClick={onUpgrade}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-                padding: '8px 14px', borderRadius: theme.radius.md,
-                border: `1px solid ${theme.colors.accent}`,
-                color: theme.colors.accent, background: theme.colors.surface,
-              }}>
+            <button onClick={onUpgrade} style={{
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+              padding: '8px 14px', borderRadius: theme.radius.md,
+              border: `1px solid ${theme.colors.accent}`,
+              color: theme.colors.accent, background: theme.colors.surface,
+            }}>
               <Crown size={13} /> Upgrade
             </button>
           )}
-          <button onClick={onInsights}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
-              padding: '8px 12px', borderRadius: theme.radius.md,
-              border: `1px solid ${theme.colors.border}`,
-              color: theme.colors.text, background: theme.colors.surface,
-            }}>
-            <BarChart3 size={13} />
-          </button>
-          <button onClick={onSettings}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
-              padding: '8px 12px', borderRadius: theme.radius.md,
-              border: `1px solid ${theme.colors.border}`,
-              color: theme.colors.text, background: theme.colors.surface,
-            }}>
-            <Settings size={13} />
-          </button>
+          <button onClick={onInsights} style={{
+            display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
+            padding: '8px 12px', borderRadius: theme.radius.md,
+            border: `1px solid ${theme.colors.border}`,
+            color: theme.colors.text, background: theme.colors.surface,
+          }}><BarChart3 size={13} /></button>
+          <button onClick={onSettings} style={{
+            display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 500,
+            padding: '8px 12px', borderRadius: theme.radius.md,
+            border: `1px solid ${theme.colors.border}`,
+            color: theme.colors.text, background: theme.colors.surface,
+          }}><Settings size={13} /></button>
         </div>
       )}
     </header>
@@ -462,9 +472,10 @@ function SettingsView({ theme, themeId, setTheme, canSwitchTheme, tier, onBack, 
         <ArrowLeft size={14} /> Back
       </button>
 
-      <h2 style={{ fontFamily: theme.fonts.serif, fontSize: isLux ? 30 : 28, fontWeight: isLux ? 400 : 600, color: theme.colors.text, marginBottom: 8 }}>
-        Settings
-      </h2>
+      <h2 style={{
+        fontFamily: theme.fonts.serif, fontSize: isLux ? 30 : 28,
+        fontWeight: isLux ? 400 : 600, color: theme.colors.text, marginBottom: 8,
+      }}>Settings</h2>
       <p style={{ fontSize: 14, color: theme.colors.textMuted, marginBottom: 32 }}>
         Make the kitchen yours.
       </p>
@@ -480,18 +491,21 @@ function SettingsView({ theme, themeId, setTheme, canSwitchTheme, tier, onBack, 
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: 12, color: theme.colors.textHint, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4 }}>
-                Current plan
-              </div>
-              <div style={{ fontFamily: theme.fonts.serif, fontSize: 22, color: theme.colors.text, fontWeight: 500 }}>
+              <div style={{
+                fontSize: 12, color: theme.colors.textHint, textTransform: 'uppercase',
+                letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4,
+              }}>Current plan</div>
+              <div style={{
+                fontFamily: theme.fonts.serif, fontSize: 22,
+                color: theme.colors.text, fontWeight: 500,
+              }}>
                 {tier === TIERS.OWNER ? 'Owner' : tier === TIERS.PREMIUM ? 'Premium' : 'Free'}
               </div>
             </div>
-            <button onClick={onManagePremium}
-              style={{
-                padding: '10px 18px', borderRadius: theme.radius.md, fontSize: 13, fontWeight: 600,
-                background: theme.colors.text, color: theme.colors.invertedText, border: 'none',
-              }}>
+            <button onClick={onManagePremium} style={{
+              padding: '10px 18px', borderRadius: theme.radius.md, fontSize: 13, fontWeight: 600,
+              background: theme.colors.text, color: theme.colors.invertedText, border: 'none',
+            }}>
               {tier === TIERS.FREE ? 'View Premium' : 'Manage'}
             </button>
           </div>
@@ -499,12 +513,11 @@ function SettingsView({ theme, themeId, setTheme, canSwitchTheme, tier, onBack, 
       </SettingsSection>
 
       <SettingsSection theme={theme} title="Reset">
-        <button onClick={() => { if (confirm('Clear all preferences, likes, and history?')) onReset(); }}
-          style={{
-            padding: '10px 18px', borderRadius: theme.radius.md, fontSize: 13, fontWeight: 500,
-            background: theme.colors.surface, color: theme.colors.danger,
-            border: `1px solid ${theme.colors.border}`,
-          }}>
+        <button onClick={() => { if (confirm('Clear all preferences, likes, and history?')) onReset(); }} style={{
+          padding: '10px 18px', borderRadius: theme.radius.md, fontSize: 13, fontWeight: 500,
+          background: theme.colors.surface, color: theme.colors.danger,
+          border: `1px solid ${theme.colors.border}`,
+        }}>
           Clear all preferences and history
         </button>
       </SettingsSection>
