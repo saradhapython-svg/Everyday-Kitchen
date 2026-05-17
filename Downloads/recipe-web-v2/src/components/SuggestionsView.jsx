@@ -149,6 +149,7 @@ export function SuggestionsView({
         canUse={tierApi.canUse('weekendShare')}
         onUpgradeRequest={(msg) => onUpgradeRequest(msg || 'Sending your weekend list is a Premium feature.')}
         showToast={showToast}
+        onOpenRecipe={onOpenRecipe}
       />
 
       {/* Shopping reminder */}

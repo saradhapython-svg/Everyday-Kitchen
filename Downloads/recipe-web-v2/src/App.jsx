@@ -192,8 +192,10 @@ export default function App() {
     return [...set].sort();
   }, [top3]);
 
-  // 7-day meal plan with smart repetition (recipes can repeat 1-2x then move on).
-  // Returns a structured plan + categorized ingredient list.
+  // 7-day meal plan with two rules:
+  //  1. Smart repetition — a recipe can appear up to 2x in a week (3x for breakfast since catalog is smaller)
+  //  2. NO same recipe twice in one day — breakfast/lunch/dinner on the same day must be different
+  //  3. Soft rule — avoid back-to-back same recipe even across days (e.g. Monday dinner -> Tuesday breakfast)
   const weekPlan = useMemo(() => {
     if (!prefs) return null;
 
@@ -204,53 +206,88 @@ export default function App() {
       .filter(({ score }) => score > 0)
       .sort((a, b) => b.score - a.score);
 
-    const breakfastPool = buildPool('breakfast');
-    const lunchPool = buildPool('lunch');
-    const dinnerPool = buildPool('dinner');
+    const pools = {
+      breakfast: buildPool('breakfast'),
+      lunch: buildPool('lunch'),
+      dinner: buildPool('dinner'),
+    };
 
-    // Smart pick: cycle through pool, each recipe can appear up to maxRepeat times,
-    // but we move on to fresh recipes before repeating when possible.
-    function planMeals(pool, days, maxRepeat = 2) {
-      if (pool.length === 0) return Array(days).fill(null);
-      const usageCount = new Map();
-      const plan = [];
-      for (let day = 0; day < days; day++) {
-        // Sort: first by lowest usage count (forces variety), then by score within same count
-        const candidates = pool
-          .map(p => ({ ...p, used: usageCount.get(p.recipe.id) || 0 }))
-          .filter(p => p.used < maxRepeat)
-          .sort((a, b) => a.used - b.used || b.score - a.score);
-        let pick;
-        if (candidates.length === 0) {
-          // Out of options under maxRepeat; reuse the best one regardless
-          pick = pool[day % pool.length];
-        } else {
-          pick = candidates[0];
-        }
-        plan.push(pick.recipe);
-        usageCount.set(pick.recipe.id, (usageCount.get(pick.recipe.id) || 0) + 1);
-      }
-      return plan;
-    }
-
-    const breakfastPlan = planMeals(breakfastPool, 7, 3); // breakfast can repeat up to 3x (only 5 in catalog)
-    const lunchPlan = planMeals(lunchPool, 7, 2);
-    const dinnerPlan = planMeals(dinnerPool, 7, 2);
-
-    // Build day-by-day structure for display
+    // Plan day-by-day, with all three meals planned together so we can enforce
+    // "no duplicate within a day" and "no back-to-back across day boundaries".
+    const usageCount = new Map();       // global usage across the whole week
+    const days = [];
     const dayLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const days = dayLabels.map((label, i) => ({
-      day: label,
-      breakfast: breakfastPlan[i],
-      lunch: lunchPlan[i],
-      dinner: dinnerPlan[i],
-    }));
+    const MAX_REPEAT_BREAKFAST = 3;     // breakfast pool is smaller, allow more repeats
+    const MAX_REPEAT_OTHER = 2;
+
+    let lastMeal = null; // tracks the previous meal's recipe to avoid back-to-back
+
+    for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+      const todaysIds = new Set(); // recipes used today — none can repeat within the day
+      const meals = {};
+
+      for (const slot of ['breakfast', 'lunch', 'dinner']) {
+        const pool = pools[slot];
+        const maxRepeat = slot === 'breakfast' ? MAX_REPEAT_BREAKFAST : MAX_REPEAT_OTHER;
+
+        // Candidates: not used today, under repeat cap
+        let candidates = pool
+          .map(p => ({ ...p, used: usageCount.get(p.recipe.id) || 0 }))
+          .filter(p => !todaysIds.has(p.recipe.id))   // HARD: not same day
+          .filter(p => p.used < maxRepeat);
+
+        // Apply soft "no back-to-back" preference
+        if (lastMeal) {
+          const withoutBackToBack = candidates.filter(p => p.recipe.id !== lastMeal);
+          if (withoutBackToBack.length > 0) candidates = withoutBackToBack;
+          // If only back-to-back option remains, allow it — better than nothing
+        }
+
+        // Sort: prefer least-used recipes first, then by score
+        candidates.sort((a, b) => a.used - b.used || b.score - a.score);
+
+        let pick;
+        if (candidates.length > 0) {
+          pick = candidates[0].recipe;
+        } else {
+          // Fallback: pool is exhausted under our constraints. Drop the repeat cap
+          // but still enforce no-same-day-duplicate.
+          const fallback = pool
+            .filter(p => !todaysIds.has(p.recipe.id))
+            .sort((a, b) => (usageCount.get(a.recipe.id) || 0) - (usageCount.get(b.recipe.id) || 0));
+          if (fallback.length > 0) {
+            pick = fallback[0].recipe;
+          } else if (pool.length > 0) {
+            // Absolute last resort — same-day duplicate (very rare)
+            pick = pool[0].recipe;
+          } else {
+            pick = null;
+          }
+        }
+
+        if (pick) {
+          meals[slot] = pick;
+          todaysIds.add(pick.id);
+          usageCount.set(pick.id, (usageCount.get(pick.id) || 0) + 1);
+          lastMeal = pick.id;
+        }
+      }
+
+      days.push({
+        day: dayLabels[dayIdx],
+        breakfast: meals.breakfast,
+        lunch: meals.lunch,
+        dinner: meals.dinner,
+      });
+    }
 
     // Collect all unique recipes used
     const allUsed = new Set();
     const usedRecipes = [];
-    [...breakfastPlan, ...lunchPlan, ...dinnerPlan].forEach(r => {
-      if (r && !allUsed.has(r.id)) { allUsed.add(r.id); usedRecipes.push(r); }
+    days.forEach(d => {
+      [d.breakfast, d.lunch, d.dinner].forEach(r => {
+        if (r && !allUsed.has(r.id)) { allUsed.add(r.id); usedRecipes.push(r); }
+      });
     });
 
     // Categorize ingredients
@@ -392,6 +429,7 @@ export default function App() {
             feedback={feedback[activeRecipe.id]}
             analytics={analytics[activeRecipe.id]}
             excluded={excluded}
+            prefs={prefs}
             onToggleExcluded={toggleExcluded}
             onBack={() => { setView('suggestions'); setActiveRecipe(null); }}
             onRate={(kind) => rateRecipe(activeRecipe.id, kind)}

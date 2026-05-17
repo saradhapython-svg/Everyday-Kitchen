@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Heart, ThumbsDown, Share2, Utensils, Check, Lock, ChefHat } from 'lucide-react';
+import { ArrowLeft, Heart, ThumbsDown, Share2, Utensils, Check, Lock, ChefHat, Lightbulb } from 'lucide-react';
 import { CookingMode } from './CookingMode.jsx';
+import { findSubstitutions, SWAP_LABELS } from '../lib/substitutions.js';
 
 export function RecipeDetail({
   theme, recipe, feedback, analytics, excluded, onToggleExcluded, onBack, onRate,
-  showToast, canCookingMode, onUpgradeRequest,
+  showToast, canCookingMode, onUpgradeRequest, prefs,
 }) {
   const isLux = theme.id === 'lux';
   const [cookingModeOpen, setCookingModeOpen] = useState(false);
@@ -139,6 +140,7 @@ export function RecipeDetail({
           <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
             {recipe.ingredients.map((i, idx) => {
               const skip = !!excluded[i];
+              const swaps = prefs ? findSubstitutions(i, prefs) : [];
               return (
                 <li key={idx}>
                   <button onClick={() => onToggleExcluded(i)} style={{
@@ -167,6 +169,32 @@ export function RecipeDetail({
                       fontSize: 11, fontStyle: 'italic', color: theme.colors.textHint,
                     }}>at home</span>}
                   </button>
+                  {/* Inline swap hints when prefs would benefit */}
+                  {!skip && swaps.length > 0 && swaps.map((s, si) => (
+                    <div key={si} style={{
+                      marginLeft: 52, marginRight: 4, marginBottom: 4,
+                      padding: '8px 12px', borderLeft: `2px solid ${theme.colors.accent}`,
+                      background: theme.colors.accentSoft,
+                      borderRadius: `0 ${theme.radius.sm}px ${theme.radius.sm}px 0`,
+                      fontSize: 12, lineHeight: 1.5,
+                    }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        fontWeight: 600, color: theme.colors.accent, marginBottom: 2,
+                        fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em',
+                      }}>
+                        <Lightbulb size={11} /> {SWAP_LABELS[s.target]}
+                      </div>
+                      <div style={{ color: theme.colors.text }}>
+                        <strong>{s.sub.swap}</strong> — {s.sub.ratio}
+                      </div>
+                      {s.sub.notes && (
+                        <div style={{ color: theme.colors.textMuted, marginTop: 2, fontStyle: 'italic' }}>
+                          {s.sub.notes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </li>
               );
             })}

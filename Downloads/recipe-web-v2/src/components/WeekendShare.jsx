@@ -4,7 +4,7 @@ import { Mail, MessageCircle, Phone, Lock, Calendar, Send, Check, ChevronDown } 
 // Lets users send themselves their weekly meal plan + ingredient list.
 // Uses native share intents — no server-side email/SMS infrastructure.
 
-export function WeekendShare({ theme, weekendList, shoppingDay, canUse, onUpgradeRequest, showToast }) {
+export function WeekendShare({ theme, weekendList, shoppingDay, canUse, onUpgradeRequest, showToast, onOpenRecipe }) {
   const isLux = theme.id === 'lux';
   const [sent, setSent] = useState(null);
   const [showPlan, setShowPlan] = useState(false);
@@ -145,13 +145,40 @@ export function WeekendShare({ theme, weekendList, shoppingDay, canUse, onUpgrad
                   }}>
                     <div style={{
                       fontFamily: isLux ? theme.fonts.serif : theme.fonts.sans,
-                      fontWeight: 600, color: theme.colors.text, marginBottom: 2,
+                      fontWeight: 600, color: theme.colors.text, marginBottom: 4,
                       fontSize: 12,
                     }}>{d.day}</div>
-                    <div style={{ fontSize: 11, color: theme.colors.textMuted, lineHeight: 1.5 }}>
-                      {d.breakfast && <span>🌅 {d.breakfast.name}</span>}
-                      {d.lunch && <span> · 🥗 {d.lunch.name}</span>}
-                      {d.dinner && <span> · 🍽️ {d.dinner.name}</span>}
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', gap: 3,
+                      fontSize: 11, lineHeight: 1.5,
+                    }}>
+                      {d.breakfast && (
+                        <RecipeLink
+                          theme={theme}
+                          icon="🌅"
+                          label="Breakfast"
+                          recipe={d.breakfast}
+                          onOpen={onOpenRecipe}
+                        />
+                      )}
+                      {d.lunch && (
+                        <RecipeLink
+                          theme={theme}
+                          icon="🥗"
+                          label="Lunch"
+                          recipe={d.lunch}
+                          onOpen={onOpenRecipe}
+                        />
+                      )}
+                      {d.dinner && (
+                        <RecipeLink
+                          theme={theme}
+                          icon="🍽️"
+                          label="Dinner"
+                          recipe={d.dinner}
+                          onOpen={onOpenRecipe}
+                        />
+                      )}
                     </div>
                   </div>
                 ))}
@@ -199,6 +226,42 @@ export function WeekendShare({ theme, weekendList, shoppingDay, canUse, onUpgrad
         </button>
       )}
     </section>
+  );
+}
+
+function RecipeLink({ theme, icon, label, recipe, onOpen }) {
+  if (!recipe) return null;
+  const clickable = !!onOpen;
+  return (
+    <button
+      onClick={() => clickable && onOpen(recipe)}
+      disabled={!clickable}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '4px 6px', margin: '-4px -6px',
+        background: 'transparent', border: 'none',
+        textAlign: 'left', width: '100%',
+        cursor: clickable ? 'pointer' : 'default',
+        borderRadius: theme.radius.sm,
+        transition: 'background 0.15s ease',
+      }}
+      onMouseEnter={(e) => { if (clickable) e.currentTarget.style.background = theme.colors.surfaceMuted; }}
+      onMouseLeave={(e) => { if (clickable) e.currentTarget.style.background = 'transparent'; }}
+    >
+      <span style={{ fontSize: 13, flexShrink: 0 }}>{icon}</span>
+      <span style={{
+        flex: 1, fontSize: 11, color: theme.colors.text,
+        fontFamily: theme.fonts.sans,
+      }}>
+        {recipe.name}
+      </span>
+      {clickable && (
+        <span style={{
+          fontSize: 10, color: theme.colors.accent, fontWeight: 600,
+          opacity: 0.7,
+        }}>view →</span>
+      )}
+    </button>
   );
 }
 
