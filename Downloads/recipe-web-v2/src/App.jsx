@@ -192,25 +192,126 @@ export default function App() {
     return [...set].sort();
   }, [top3]);
 
-  // Weekend list — top recipes across all meal times, deduplicated ingredients
-  const weekendList = useMemo(() => {
-    if (!prefs) return [];
-    const allMealTimes = [null, 'breakfast', 'lunch', 'dinner'];
-    const seen = new Set();
-    const recipes = [];
-    allMealTimes.forEach(mt => {
-      const scored = [...allRecipes]
-        .map(r => ({ recipe: r, score: scoreRecipe(r, prefs, analytics, mt) }))
-        .filter(({ score }) => score > 0)
-        .sort((a, b) => b.score - a.score);
-      scored.slice(0, 2).forEach(({ recipe }) => {
-        if (!seen.has(recipe.id)) { seen.add(recipe.id); recipes.push(recipe); }
+  // 7-day meal plan with smart repetition (recipes can repeat 1-2x then move on).
+  // Returns a structured plan + categorized ingredient list.
+  const weekPlan = useMemo(() => {
+    if (!prefs) return null;
+
+    // Build candidate pools per meal-time, sorted by score
+    const buildPool = (mt) => [...allRecipes]
+      .filter(r => r.mealTime?.includes(mt))
+      .map(r => ({ recipe: r, score: scoreRecipe(r, prefs, analytics, mt) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    const breakfastPool = buildPool('breakfast');
+    const lunchPool = buildPool('lunch');
+    const dinnerPool = buildPool('dinner');
+
+    // Smart pick: cycle through pool, each recipe can appear up to maxRepeat times,
+    // but we move on to fresh recipes before repeating when possible.
+    function planMeals(pool, days, maxRepeat = 2) {
+      if (pool.length === 0) return Array(days).fill(null);
+      const usageCount = new Map();
+      const plan = [];
+      for (let day = 0; day < days; day++) {
+        // Sort: first by lowest usage count (forces variety), then by score within same count
+        const candidates = pool
+          .map(p => ({ ...p, used: usageCount.get(p.recipe.id) || 0 }))
+          .filter(p => p.used < maxRepeat)
+          .sort((a, b) => a.used - b.used || b.score - a.score);
+        let pick;
+        if (candidates.length === 0) {
+          // Out of options under maxRepeat; reuse the best one regardless
+          pick = pool[day % pool.length];
+        } else {
+          pick = candidates[0];
+        }
+        plan.push(pick.recipe);
+        usageCount.set(pick.recipe.id, (usageCount.get(pick.recipe.id) || 0) + 1);
+      }
+      return plan;
+    }
+
+    const breakfastPlan = planMeals(breakfastPool, 7, 3); // breakfast can repeat up to 3x (only 5 in catalog)
+    const lunchPlan = planMeals(lunchPool, 7, 2);
+    const dinnerPlan = planMeals(dinnerPool, 7, 2);
+
+    // Build day-by-day structure for display
+    const dayLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const days = dayLabels.map((label, i) => ({
+      day: label,
+      breakfast: breakfastPlan[i],
+      lunch: lunchPlan[i],
+      dinner: dinnerPlan[i],
+    }));
+
+    // Collect all unique recipes used
+    const allUsed = new Set();
+    const usedRecipes = [];
+    [...breakfastPlan, ...lunchPlan, ...dinnerPlan].forEach(r => {
+      if (r && !allUsed.has(r.id)) { allUsed.add(r.id); usedRecipes.push(r); }
+    });
+
+    // Categorize ingredients
+    // Heuristic-based categorization since ingredients are free text
+    function categorize(ingredient) {
+      const lower = ingredient.toLowerCase();
+      if (/(milk|yogurt|cheese|paneer|feta|ghee|butter|cream)/.test(lower)) return 'Dairy';
+      if (/(tomato|onion|garlic|ginger|spinach|carrot|zucchini|pepper|avocado|lemon|lime|mango|berries|berry|parsley|cilantro|basil|scallion|leaves|chili|arugula|microgreen|bok choy|bamboo|sweet potato|potato)/.test(lower)) return 'Produce';
+      if (/(rice|lentil|quinoa|oats|chickpea|tofu|bean|flour|sticky)/.test(lower)) return 'Pantry — grains & proteins';
+      if (/(oil|vinegar|sauce|paste|honey|syrup|sugar|salt|tamarind|gochujang|kimchi|nori|sesame|asafoetida)/.test(lower)) return 'Pantry — oils & condiments';
+      if (/(cumin|cinnamon|turmeric|garam|curry|mustard|pepper|vanilla|coriander)/.test(lower)) return 'Spices';
+      if (/(bread|pita|sourdough|paratha)/.test(lower)) return 'Bread';
+      if (/(egg|chia|almond|pine nut|nut|seed)/.test(lower)) return 'Eggs & Nuts';
+      return 'Other';
+    }
+
+    // Deduplicate ingredients by base name (strip parenthesized quantities for matching)
+    // e.g. "Tomatoes (4)" and "Tomatoes (2, chopped)" become one entry: "Tomatoes (about 6)"
+    const baseNameMap = new Map(); // baseName -> { fullEntries: [original strings], total mentions }
+    usedRecipes.forEach(r => {
+      r.ingredients.forEach(ing => {
+        const base = ing.replace(/\s*\(.*\)\s*$/, '').trim();
+        if (!baseNameMap.has(base)) baseNameMap.set(base, []);
+        baseNameMap.get(base).push(ing);
       });
     });
-    const ingSet = new Set();
-    recipes.forEach(r => r.ingredients.forEach(i => ingSet.add(i)));
-    return { recipes, ingredients: [...ingSet].sort() };
+
+    // Build categorized output
+    const categorized = {};
+    baseNameMap.forEach((occurrences, base) => {
+      const display = occurrences.length === 1
+        ? occurrences[0]
+        : `${base} (×${occurrences.length} recipes — adjust quantity)`;
+      const cat = categorize(base);
+      if (!categorized[cat]) categorized[cat] = [];
+      categorized[cat].push(display);
+    });
+    // Sort each category alphabetically
+    Object.keys(categorized).forEach(k => categorized[k].sort());
+
+    return {
+      days,
+      recipes: usedRecipes,
+      ingredientsByCategory: categorized,
+      totalIngredients: baseNameMap.size,
+    };
   }, [prefs, analytics, allRecipes]);
+
+  // Backward-compatible: WeekendShare still wants { recipes, ingredients }
+  const weekendList = useMemo(() => {
+    if (!weekPlan) return { recipes: [], ingredients: [] };
+    const allIngredients = [];
+    Object.values(weekPlan.ingredientsByCategory).forEach(arr => allIngredients.push(...arr));
+    return {
+      recipes: weekPlan.recipes,
+      ingredients: allIngredients,
+      ingredientsByCategory: weekPlan.ingredientsByCategory,
+      days: weekPlan.days,
+      totalIngredients: weekPlan.totalIngredients,
+    };
+  }, [weekPlan]);
 
   const requestUpgrade = useCallback((feature, message) => {
     setPaywall({ feature, message });

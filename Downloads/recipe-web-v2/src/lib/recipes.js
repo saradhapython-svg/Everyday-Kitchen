@@ -358,12 +358,37 @@ export const SEED_RECIPES = [
 // ============================================================
 //  Scoring engine — accepts optional mealTime filter
 // ============================================================
+// Helper: returns 0 for exact match, 1 for one step off (low↔medium, medium↔high),
+// 2 for opposite ends (low↔high).
+function macroDistance(a, b) {
+  const order = { low: 1, medium: 2, high: 3 };
+  return Math.abs((order[a] || 2) - (order[b] || 2));
+}
+
+// Helper: score a macro dimension.
+// Exact match = bonus. Adjacent (e.g. asked low, got medium) = neutral. Opposite = penalty.
+function scoreMacro(recipeMacro, prefMacro, bonus) {
+  const d = macroDistance(recipeMacro, prefMacro);
+  if (d === 0) return bonus;        // exact match
+  if (d === 1) return -bonus * 0.5; // one step off — small penalty
+  return -bonus * 2;                // opposite end — strong penalty
+}
+
 export function scoreRecipe(recipe, prefs, analytics, currentMealTime = null) {
   let score = 0;
-  if (recipe.macros.protein === prefs.protein) score += 3;
-  if (recipe.macros.fat === prefs.fat) score += 2;
-  if (recipe.macros.carb === prefs.carb) score += 2;
-  if (recipe.taste === prefs.taste || prefs.taste === 'balanced') score += 3;
+
+  // Macros now use distance-aware scoring — mismatches get penalized, not just ignored.
+  // Carb (your low-carb bug): asked low + recipe high = -4. Asked low + recipe medium = -1. Asked low + recipe low = +2.
+  score += scoreMacro(recipe.macros.protein, prefs.protein, 3);
+  score += scoreMacro(recipe.macros.fat, prefs.fat, 2);
+  score += scoreMacro(recipe.macros.carb, prefs.carb, 2);
+
+  // Taste: exact match wins +3. "balanced" preference is permissive (matches anything).
+  // Mismatch now penalized -2 instead of being ignored.
+  if (prefs.taste === 'balanced' || recipe.taste === prefs.taste) score += 3;
+  else score -= 2;
+
+  // Audience: unchanged — still hard penalty if no one at the table fits the recipe.
   const audienceMatch = prefs.audience.some(a => recipe.suitableFor.includes(a));
   if (audienceMatch) score += 4; else score -= 5;
 
